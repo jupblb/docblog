@@ -1,0 +1,4 @@
+/.direnv/
+/.gcloud/
+/.nvim.lua
+/credentials.json

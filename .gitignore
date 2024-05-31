@@ -2,3 +2,4 @@
 /.gcloud/
 /.nvim.lua
 /credentials.json
+/output

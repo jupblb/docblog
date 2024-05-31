@@ -10,8 +10,10 @@
         pkgs           = (import nixpkgs) { inherit system; };
       in {
         devShell = pkgs.mkShell {
-          buildInputs = with pkgs;
-            [ google-cloud-sdk go go-tools gofumpt gopls gore ];
+          buildInputs = with pkgs; [
+            google-cloud-sdk go go-tools gofumpt gopls gore
+            nodePackages.vscode-langservers-extracted
+          ];
 
           GOROOT = "${pkgs.go}/share/go";
         };

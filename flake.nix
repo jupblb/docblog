@@ -11,7 +11,7 @@
       in {
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
-            google-cloud-sdk go go-tools gofumpt gopls gore
+            google-cloud-sdk go go-tools gofumpt gopls gore hugo
             nodePackages.vscode-langservers-extracted
           ];
 

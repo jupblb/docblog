@@ -1,4 +1,4 @@
-module github.com/google/gtasks-md
+module github.com/google/docblog
 
 go 1.21
 

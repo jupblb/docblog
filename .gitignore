@@ -2,4 +2,7 @@
 /.gcloud/
 /.nvim.lua
 /credentials.json
+/hugo
 /output
+/posts
+/static

@@ -10,5 +10,5 @@ gcloud auth application-default login \
   --scopes="https://www.googleapis.com/auth/docs" \
   --scopes="https://www.googleapis.com/auth/drive" \
   --scopes="https://www.googleapis.com/auth/drive.metadata" \
-  --scopes="https://www.googleapis.com/auth/drive.readonly" \
+  --scopes="https://www.googleapis.com/auth/drive.readonly"
 ```

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"golang.org/x/net/html"
@@ -101,7 +102,13 @@ func (doc HtmlDoc) modifyContent(node *html.Node) {
 		}
 	}
 
+	var wg sync.WaitGroup
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		doc.modifyContent(child)
+		wg.Add(1)
+		go func(n *html.Node) {
+			doc.modifyContent(n)
+			wg.Done()
+		}(child)
 	}
+	wg.Wait()
 }

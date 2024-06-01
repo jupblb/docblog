@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"golang.org/x/net/html"
-	"google.golang.org/api/drive/v3"
 )
 
 const HideStyle = "visibility:hidden;display:none"
@@ -20,7 +19,7 @@ type HtmlDoc struct {
 	Title       string    `json:"title,omitempty"`
 }
 
-func NewHtmlDoc(file *drive.File, content []byte) (HtmlDoc, error) {
+func NewHtmlDoc(file *DriveFile, content []byte) (HtmlDoc, error) {
 	date, err := time.Parse(time.RFC3339, file.CreatedTime)
 	if err != nil {
 		return HtmlDoc{}, err

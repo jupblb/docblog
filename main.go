@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-
-	"google.golang.org/api/drive/v3"
 )
 
 func main() {
@@ -60,7 +58,7 @@ func main() {
 	}
 }
 
-func processHtml(outputPath string, file *drive.File, fileContent []byte) error {
+func processHtml(outputPath string, file *DriveFile, fileContent []byte) error {
 	htmlDoc, err := NewHtmlDoc(file, fileContent)
 	if err != nil {
 		return err

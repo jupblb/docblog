@@ -21,6 +21,13 @@ type DriveService struct {
 	srv *drive.Service
 }
 
+type DriveFile struct {
+	CreatedTime string
+	Id          string
+	MimeType    string
+	Name        string
+}
+
 type unzippedFile struct {
 	Name    string
 	Content []byte
@@ -37,7 +44,7 @@ func NewDriveService(
 	return &DriveService{srv: srv}, nil
 }
 
-func (ds *DriveService) ListFiles(driveDirId string) ([]*drive.File, error) {
+func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 	fileList, err := ds.listGoogleDocs(driveDirId, "")
 	if err != nil {
 		return nil, err
@@ -54,11 +61,21 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*drive.File, error) {
 		pageToken = fileList.NextPageToken
 	}
 
-	return files, nil
+	driveFiles := []*DriveFile{}
+	for _, file := range files {
+		driveFiles = append(driveFiles, &DriveFile{
+			CreatedTime: file.CreatedTime,
+			Id:          file.Id,
+			MimeType:    file.MimeType,
+			Name:        file.Name,
+		})
+	}
+
+	return driveFiles, nil
 }
 
 func (ds *DriveService) ExportGoogleDocToZippedHtml(
-	file *drive.File,
+	file *DriveFile,
 ) ([]*unzippedFile, error) {
 	if file.MimeType != "application/vnd.google-apps.document" {
 		return nil,

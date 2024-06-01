@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+
+	"github.com/google/docblog/pkg/config"
+	"github.com/google/docblog/pkg/doc"
 )
 
 func main() {
-	config, err := ReadConfig()
+	config, err := config.ReadConfig()
 	if err != nil {
 		panic(err)
 	}
@@ -17,7 +20,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	srv, err := NewDriveService(ctx, config.DriveOpts())
+	srv, err := doc.NewDriveService(ctx, config.DriveOpts())
 	if err != nil {
 		panic(err)
 	}
@@ -46,9 +49,9 @@ func main() {
 				}
 			case ".png":
 				log.Printf("Processing PNG asset: %s\n", unzippedFile.Name)
-				modifiedName := NormalizedAssetPath(file.Id, unzippedFile.Name)
+				modifiedName := doc.NormalizedAssetPath(file.Id, unzippedFile.Name)
 				outputPath := fmt.Sprintf("%s/%s", config.AssetsOutput, modifiedName)
-				if err := WriteFile(outputPath, unzippedFile.Content); err != nil {
+				if err := doc.WriteFile(outputPath, unzippedFile.Content); err != nil {
 					log.Printf("Error processing PNG file: %s\n", unzippedFile.Name)
 				}
 			default:
@@ -58,8 +61,8 @@ func main() {
 	}
 }
 
-func processHtml(outputPath string, file *DriveFile, fileContent []byte) error {
-	htmlDoc, err := NewHtmlDoc(file, fileContent)
+func processHtml(outputPath string, file *doc.DriveFile, fileContent []byte) error {
+	htmlDoc, err := doc.NewHtmlDoc(file, fileContent)
 	if err != nil {
 		return err
 	}
@@ -74,5 +77,5 @@ func processHtml(outputPath string, file *DriveFile, fileContent []byte) error {
 		return err
 	}
 
-	return WriteFile(outputPath, htmlDoc.Content)
+	return doc.WriteFile(outputPath, htmlDoc.Content)
 }

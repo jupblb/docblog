@@ -21,6 +21,11 @@ type DriveService struct {
 	srv *drive.Service
 }
 
+type unzippedFile struct {
+	Name    string
+	Content []byte
+}
+
 func NewDriveService(
 	ctx context.Context,
 	opts []option.ClientOption,
@@ -52,9 +57,12 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*drive.File, error) {
 	return files, nil
 }
 
-func (ds *DriveService) ExportGoogleDocToZippedHtml(file *drive.File) ([]*zip.File, error) {
+func (ds *DriveService) ExportGoogleDocToZippedHtml(
+	file *drive.File,
+) ([]*unzippedFile, error) {
 	if file.MimeType != "application/vnd.google-apps.document" {
-		return nil, fmt.Errorf("file %s (%s) is not a Google Doc", file.Name, file.Id)
+		return nil,
+			fmt.Errorf("file %s (%s) is not a Google Doc", file.Name, file.Id)
 	}
 
 	resp, err := ds.srv.Files.Export(file.Id, "application/zip").Download()
@@ -72,7 +80,19 @@ func (ds *DriveService) ExportGoogleDocToZippedHtml(file *drive.File) ([]*zip.Fi
 		return nil, err
 	}
 
-	return zipReader.File, nil
+	var unzippedFiles []*unzippedFile
+	for _, zipFile := range zipReader.File {
+		content, err := readZipFile(zipFile)
+		if err != nil {
+			return unzippedFiles, err
+		}
+		unzippedFiles = append(unzippedFiles, &unzippedFile{
+			Name:    zipFile.Name,
+			Content: content,
+		})
+	}
+
+	return unzippedFiles, nil
 }
 
 func (ds *DriveService) listGoogleDocs(
@@ -88,4 +108,13 @@ func (ds *DriveService) listGoogleDocs(
 	}
 
 	return call.Do()
+}
+
+func readZipFile(zf *zip.File) ([]byte, error) {
+	f, err := zf.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(f)
 }

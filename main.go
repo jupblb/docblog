@@ -1,16 +1,13 @@
 package main
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"golang.org/x/net/html"
 	"google.golang.org/api/drive/v3"
@@ -38,28 +35,22 @@ func main() {
 
 	for _, file := range files {
 		log.Printf("| %s (%s)", file.Name, file.Id)
-		zippedFiles, err := srv.ExportGoogleDocToZippedHtml(file)
+		unzippedFiles, err := srv.ExportGoogleDocToZippedHtml(file)
 		if err != nil {
-			log.Println(err)
+			log.Printf("Error exporting file: %s\n", file.Name)
 		}
 
-		for _, zipFile := range zippedFiles {
-			unzippedFile, err := readZipFile(zipFile)
-			if err != nil {
-				log.Println(err)
+		for _, unzippedFile := range unzippedFiles {
+			if strings.HasSuffix(unzippedFile.Name, ".html") {
+				handleHtml(config.PostsOutput, file, unzippedFile.Name, unzippedFile.Content)
 				continue
 			}
-
-			if strings.HasSuffix(zipFile.Name, ".html") {
-				handleHtml(config.PostsOutput, file, zipFile.Name, unzippedFile)
+			if strings.HasSuffix(unzippedFile.Name, ".png") {
+				modifiedName := fmt.Sprintf("%s-%s", file.Id, filepath.Base(unzippedFile.Name))
+				handlePng(config.AssetsOutput, modifiedName, unzippedFile.Content)
 				continue
 			}
-			if strings.HasSuffix(zipFile.Name, ".png") {
-				modifiedName := fmt.Sprintf("%s-%s", file.Id, filepath.Base(zipFile.Name))
-				handlePng(config.AssetsOutput, modifiedName, unzippedFile)
-				continue
-			}
-			log.Printf("Skipping unsupported file: %s\n", zipFile.Name)
+			log.Printf("Skipping unsupported file: %s\n", unzippedFile.Name)
 		}
 	}
 }
@@ -94,9 +85,10 @@ func handleHtml(outputDir string, file *drive.File, name string, fileContent []b
 	}
 	defer f.Close()
 
-	frontmatter := DocumentFrontmatter{
-		Date:  time.Now(),
-		Title: file.Name,
+	frontmatter, err := NewDocumentFrontmatter(file)
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
 	content, err := frontmatter.PrependTo(modifiedFile)
@@ -109,15 +101,6 @@ func handleHtml(outputDir string, file *drive.File, name string, fileContent []b
 	if _, err = f.Write(content); err != nil {
 		log.Println(err)
 	}
-}
-
-func readZipFile(zf *zip.File) ([]byte, error) {
-	f, err := zf.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return io.ReadAll(f)
 }
 
 func modifyHtml(fileId string, content []byte) ([]byte, error) {

@@ -1,8 +1,11 @@
 module github.com/google/docblog
 
-go 1.21
+go 1.22
 
-require google.golang.org/api v0.182.0
+require (
+	golang.org/x/net v0.25.0
+	google.golang.org/api v0.182.0
+)
 
 require (
 	cloud.google.com/go/auth v0.4.2 // indirect
@@ -24,7 +27,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/oauth2 v0.20.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect

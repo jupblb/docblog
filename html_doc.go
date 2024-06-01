@@ -75,7 +75,7 @@ func (doc HtmlDoc) modifyContent(node *html.Node) {
 			// Fix image paths
 			for i, attr := range node.Attr {
 				if attr.Key == "src" {
-					node.Attr[i].Val = NormalizedAssetPath(doc.Id, attr.Val)
+					node.Attr[i].Val = "/" + NormalizedAssetPath(doc.Id, attr.Val)
 				}
 			}
 		case "p":

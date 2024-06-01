@@ -6,8 +6,9 @@ import (
 )
 
 type DocumentFrontmatter struct {
-	Date  time.Time `json:"date,omitempty"`
-	Title string    `json:"title,omitempty"`
+	Date        time.Time `json:"date,omitempty"`
+	Title       string    `json:"title,omitempty"`
+	Description string    `json:"description,omitempty"`
 }
 
 func (d *DocumentFrontmatter) PrependTo(content []byte) ([]byte, error) {

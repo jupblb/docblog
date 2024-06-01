@@ -14,60 +14,36 @@ import (
 
 	"golang.org/x/net/html"
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 )
-
-const (
-	FileListDriveDir = "180SMxnqxvPk6B52OnIZrsVakLvnh3nyc"
-	FileListFields   = "nextPageToken, files(id, createdTime, mimeType, name)"
-	FileListQuery    = "'%s' in parents and trashed=false and " +
-		"mimeType='application/vnd.google-apps.document'"
-)
-
-var DriveOpts = []option.ClientOption{
-	option.WithCredentialsFile(".gcloud/application_default_credentials.json"),
-}
 
 func main() {
+	config, err := ReadConfig()
+	if err != nil {
+		panic(err)
+	}
+	if err := config.SetupDirs(); err != nil {
+		panic(err)
+	}
+
 	ctx := context.Background()
-
-	if err := os.MkdirAll("posts", 0o750); err != nil {
-		log.Fatalf("Error creating 'posts' directory: %v", err)
-	}
-	if err := os.MkdirAll("hugo/static", 0o750); err != nil {
-		log.Fatalf("Error creating 'hugo/static' directory: %v", err)
-	}
-
-	srv, err := drive.NewService(ctx, DriveOpts...)
+	srv, err := NewDriveService(ctx, config.DriveOpts())
 	if err != nil {
 		panic(err)
 	}
 
-	files, err := listFiles(srv)
+	files, err := srv.ListFiles(config.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
 
 	for _, file := range files {
 		log.Printf("| %s (%s)", file.Name, file.Id)
-		resp, err := srv.Files.Export(file.Id, "application/zip").Download()
+		zippedFiles, err := srv.ExportGoogleDocToZippedHtml(file)
 		if err != nil {
-			log.Printf("Error downloading file: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// https://stackoverflow.com/a/50539327/2900417
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Println(err.Error())
+			log.Println(err)
 		}
 
-		zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
-		if err != nil {
-			log.Println(err.Error())
-		}
-
-		for _, zipFile := range zipReader.File {
+		for _, zipFile := range zippedFiles {
 			unzippedFile, err := readZipFile(zipFile)
 			if err != nil {
 				log.Println(err)
@@ -75,12 +51,12 @@ func main() {
 			}
 
 			if strings.HasSuffix(zipFile.Name, ".html") {
-				handleHtml(file, zipFile.Name, unzippedFile)
+				handleHtml(config.PostsOutput, file, zipFile.Name, unzippedFile)
 				continue
 			}
 			if strings.HasSuffix(zipFile.Name, ".png") {
 				modifiedName := fmt.Sprintf("%s-%s", file.Id, filepath.Base(zipFile.Name))
-				handlePng(modifiedName, unzippedFile)
+				handlePng(config.AssetsOutput, modifiedName, unzippedFile)
 				continue
 			}
 			log.Printf("Skipping unsupported file: %s\n", zipFile.Name)
@@ -88,8 +64,8 @@ func main() {
 	}
 }
 
-func handlePng(name string, fileContent []byte) {
-	outputPath := fmt.Sprintf("hugo/static/%s", name)
+func handlePng(outputDir string, name string, fileContent []byte) {
+	outputPath := fmt.Sprintf("%s/%s", outputDir, name)
 	f, err := os.Create(outputPath)
 	if err != nil {
 		log.Println(err)
@@ -103,14 +79,14 @@ func handlePng(name string, fileContent []byte) {
 	}
 }
 
-func handleHtml(file *drive.File, name string, fileContent []byte) {
+func handleHtml(outputDir string, file *drive.File, name string, fileContent []byte) {
 	modifiedFile, err := modifyHtml(file.Id, fileContent)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	outputPath := fmt.Sprintf("posts/%s", name)
+	outputPath := fmt.Sprintf("%s/%s", outputDir, name)
 	f, err := os.Create(outputPath)
 	if err != nil {
 		log.Println(err)
@@ -133,33 +109,6 @@ func handleHtml(file *drive.File, name string, fileContent []byte) {
 	if _, err = f.Write(content); err != nil {
 		log.Println(err)
 	}
-}
-
-func listFiles(srv *drive.Service) ([]*drive.File, error) {
-	fileList, err := srv.Files.List().
-		Fields(FileListFields).
-		Q(fmt.Sprintf(FileListQuery, FileListDriveDir)).
-		Do()
-	if err != nil {
-		log.Fatalf("Unable to retrieve files: %v", err)
-	}
-
-	files := fileList.Files
-	pageToken := fileList.NextPageToken
-	for pageToken != "" {
-		fileList, err = srv.Files.List().
-			Fields(FileListFields).
-			Q(fmt.Sprintf(FileListQuery, FileListDriveDir)).
-			PageToken(pageToken).
-			Do()
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, fileList.Files...)
-		pageToken = fileList.NextPageToken
-	}
-
-	return files, nil
 }
 
 func readZipFile(zf *zip.File) ([]byte, error) {

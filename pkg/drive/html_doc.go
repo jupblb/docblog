@@ -21,7 +21,7 @@ type HtmlDoc struct {
 	Title       string    `json:"title,omitempty"`
 }
 
-func NewHtmlDoc(file *DriveFile, content []byte) (HtmlDoc, error) {
+func NewHtmlDoc(file *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 	createdDate, err := time.Parse(time.RFC3339, file.CreatedTime)
 	if err != nil {
 		return HtmlDoc{}, err

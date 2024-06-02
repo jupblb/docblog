@@ -25,7 +25,12 @@ func main() {
 		panic(err)
 	}
 
-	files, err := srv.ListFiles(config.DriveDirId)
+	_, err = srv.GetOrCreateIndexSheet(config.DriveDirId)
+	if err != nil {
+		panic(err)
+	}
+
+	files, err := srv.ListGoogleDocs(config.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +66,7 @@ func main() {
 	}
 }
 
-func processHtml(outputPath string, file *drive.DriveFile, fileContent []byte) error {
+func processHtml(outputPath string, file *drive.GoogleDocMetadata, fileContent []byte) error {
 	htmlDoc, err := drive.NewHtmlDoc(file, fileContent)
 	if err != nil {
 		return err

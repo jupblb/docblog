@@ -9,19 +9,24 @@ import (
 
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
+	"google.golang.org/api/sheets/v4"
 )
 
 const (
-	FileListFields     = "nextPageToken, files(id, createdTime, modifiedTime, name)"
-	GoogleDocListQuery = "'%s' in parents and trashed=false and " +
+	GoogleDocListFields = "nextPageToken, files(id, createdTime, modifiedTime, name)"
+	GoogleDocListQuery  = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.document'"
+
+	GoogleSheetIndexListQuery = "'%s' in parents and trashed=false and " +
+		"mimeType='application/vnd.google-apps.spreadsheet' and name='index'"
 )
 
 type DriveService struct {
-	srv *drive.Service
+	driveSrv *drive.Service
+	sheetSrv *sheets.Service
 }
 
-type DriveFile struct {
+type GoogleDocMetadata struct {
 	CreatedTime  string
 	Id           string
 	ModifiedTime string
@@ -37,14 +42,20 @@ func NewDriveService(
 	ctx context.Context,
 	opts []option.ClientOption,
 ) (*DriveService, error) {
-	srv, err := drive.NewService(ctx, opts...)
+	driveSrv, err := drive.NewService(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return &DriveService{srv: srv}, nil
+	sheetSrv, err := sheets.NewService(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &DriveService{driveSrv: driveSrv, sheetSrv: sheetSrv}, nil
 }
 
-func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
+func (ds *DriveService) ListGoogleDocs(
+	driveDirId string,
+) ([]*GoogleDocMetadata, error) {
 	fileList, err := ds.listGoogleDocs(driveDirId, "")
 	if err != nil {
 		return nil, err
@@ -61,9 +72,9 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 		pageToken = fileList.NextPageToken
 	}
 
-	driveFiles := []*DriveFile{}
+	driveFiles := []*GoogleDocMetadata{}
 	for _, file := range files {
-		driveFiles = append(driveFiles, &DriveFile{
+		driveFiles = append(driveFiles, &GoogleDocMetadata{
 			CreatedTime:  file.CreatedTime,
 			ModifiedTime: file.ModifiedTime,
 			Id:           file.Id,
@@ -74,10 +85,50 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 	return driveFiles, nil
 }
 
+func (ds *DriveService) GetOrCreateIndexSheet(
+	driveDirId string,
+) (*sheets.Spreadsheet, error) {
+	fileList, err := ds.driveSrv.Files.List().
+		Fields("files(id)").
+		Q(fmt.Sprintf(GoogleSheetIndexListQuery, driveDirId)).
+		Do()
+	if err != nil {
+		return nil, err
+	}
+
+	files := fileList.Files
+	if len(files) > 1 {
+		return nil, fmt.Errorf("multiple index sheets found")
+	}
+	if len(files) == 0 {
+		sheet, err := ds.sheetSrv.Spreadsheets.Create(&sheets.Spreadsheet{
+			Properties: &sheets.SpreadsheetProperties{
+				Title: "index",
+			},
+			Sheets: []*sheets.Sheet{{}},
+		}).Do()
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = ds.driveSrv.Files.
+			Update(sheet.SpreadsheetId, nil).
+			AddParents(driveDirId).
+			Do()
+		if err != nil {
+			return nil, err
+		}
+
+		return sheet, nil
+	}
+
+	return ds.sheetSrv.Spreadsheets.Get(files[0].Id).Do()
+}
+
 func (ds *DriveService) ExportGoogleDocToZippedHtml(
-	file *DriveFile,
+	file *GoogleDocMetadata,
 ) ([]*unzippedFile, error) {
-	resp, err := ds.srv.Files.Export(file.Id, "application/zip").Download()
+	resp, err := ds.driveSrv.Files.Export(file.Id, "application/zip").Download()
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +162,8 @@ func (ds *DriveService) listGoogleDocs(
 	driveDirId string,
 	pageToken string,
 ) (*drive.FileList, error) {
-	call := ds.srv.Files.List().
-		Fields(FileListFields).
+	call := ds.driveSrv.Files.List().
+		Fields(GoogleDocListFields).
 		Q(fmt.Sprintf(GoogleDocListQuery, driveDirId))
 
 	if pageToken != "" {

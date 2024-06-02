@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	FileListFields     = "nextPageToken, files(id, createdTime, mimeType, name)"
+	FileListFields     = "nextPageToken, files(id, createdTime, name)"
 	GoogleDocListQuery = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.document'"
 )
@@ -24,7 +24,6 @@ type DriveService struct {
 type DriveFile struct {
 	CreatedTime string
 	Id          string
-	MimeType    string
 	Name        string
 }
 
@@ -66,7 +65,6 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 		driveFiles = append(driveFiles, &DriveFile{
 			CreatedTime: file.CreatedTime,
 			Id:          file.Id,
-			MimeType:    file.MimeType,
 			Name:        file.Name,
 		})
 	}
@@ -77,11 +75,6 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 func (ds *DriveService) ExportGoogleDocToZippedHtml(
 	file *DriveFile,
 ) ([]*unzippedFile, error) {
-	if file.MimeType != "application/vnd.google-apps.document" {
-		return nil,
-			fmt.Errorf("file %s (%s) is not a Google Doc", file.Name, file.Id)
-	}
-
 	resp, err := ds.srv.Files.Export(file.Id, "application/zip").Download()
 	if err != nil {
 		return nil, err

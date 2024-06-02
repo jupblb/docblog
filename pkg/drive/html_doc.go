@@ -1,4 +1,4 @@
-package doc
+package drive
 
 import (
 	"bytes"
@@ -15,10 +15,10 @@ type HtmlDoc struct {
 	Content      []byte    `json:"-"`
 	ModifiedDate time.Time `json:"-"`
 
-	CreeatedDate time.Time `json:"date,omitempty"`
-	Description  string    `json:"description,omitempty"`
-	Id           string    `json:"id,omitempty"`
-	Title        string    `json:"title,omitempty"`
+	CreatedDate time.Time `json:"date,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Id          string    `json:"id,omitempty"`
+	Title       string    `json:"title,omitempty"`
 }
 
 func NewHtmlDoc(file *DriveFile, content []byte) (HtmlDoc, error) {
@@ -34,7 +34,7 @@ func NewHtmlDoc(file *DriveFile, content []byte) (HtmlDoc, error) {
 
 	return HtmlDoc{
 		Content:      content,
-		CreeatedDate: createdDate,
+		CreatedDate:  createdDate,
 		Id:           file.Id,
 		ModifiedDate: modifiedDate,
 		Title:        file.Name,

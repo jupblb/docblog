@@ -12,25 +12,32 @@ import (
 const HideStyle = "visibility:hidden;display:none"
 
 type HtmlDoc struct {
-	Content []byte `json:"-"`
+	Content      []byte    `json:"-"`
+	ModifiedDate time.Time `json:"-"`
 
-	Date        time.Time `json:"date,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Id          string    `json:"id,omitempty"`
-	Title       string    `json:"title,omitempty"`
+	CreeatedDate time.Time `json:"date,omitempty"`
+	Description  string    `json:"description,omitempty"`
+	Id           string    `json:"id,omitempty"`
+	Title        string    `json:"title,omitempty"`
 }
 
 func NewHtmlDoc(file *DriveFile, content []byte) (HtmlDoc, error) {
-	date, err := time.Parse(time.RFC3339, file.CreatedTime)
+	createdDate, err := time.Parse(time.RFC3339, file.CreatedTime)
+	if err != nil {
+		return HtmlDoc{}, err
+	}
+
+	modifiedDate, err := time.Parse(time.RFC3339, file.ModifiedTime)
 	if err != nil {
 		return HtmlDoc{}, err
 	}
 
 	return HtmlDoc{
-		Content: content,
-		Date:    date,
-		Id:      file.Id,
-		Title:   file.Name,
+		Content:      content,
+		CreeatedDate: createdDate,
+		Id:           file.Id,
+		ModifiedDate: modifiedDate,
+		Title:        file.Name,
 	}, nil
 }
 

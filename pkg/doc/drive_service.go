@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	FileListFields     = "nextPageToken, files(id, createdTime, name)"
+	FileListFields     = "nextPageToken, files(id, createdTime, modifiedTime, name)"
 	GoogleDocListQuery = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.document'"
 )
@@ -22,9 +22,10 @@ type DriveService struct {
 }
 
 type DriveFile struct {
-	CreatedTime string
-	Id          string
-	Name        string
+	CreatedTime  string
+	Id           string
+	ModifiedTime string
+	Name         string
 }
 
 type unzippedFile struct {
@@ -63,9 +64,10 @@ func (ds *DriveService) ListFiles(driveDirId string) ([]*DriveFile, error) {
 	driveFiles := []*DriveFile{}
 	for _, file := range files {
 		driveFiles = append(driveFiles, &DriveFile{
-			CreatedTime: file.CreatedTime,
-			Id:          file.Id,
-			Name:        file.Name,
+			CreatedTime:  file.CreatedTime,
+			ModifiedTime: file.ModifiedTime,
+			Id:           file.Id,
+			Name:         file.Name,
 		})
 	}
 

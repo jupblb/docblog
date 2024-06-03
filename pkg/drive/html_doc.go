@@ -9,34 +9,29 @@ import (
 	"golang.org/x/net/html"
 )
 
-const HideStyle = "visibility:hidden;display:none"
+const (
+	HideStyle = "visibility:hidden;display:none"
+)
 
 type HtmlDoc struct {
 	Content      []byte    `json:"-"`
 	ModifiedDate time.Time `json:"-"`
 
-	CreatedDate time.Time `json:"date,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Id          string    `json:"id,omitempty"`
-	Title       string    `json:"title,omitempty"`
+	CreatedDate time.Time `json:"date"`
+	Draft       bool      `json:"draft"`
+	Description string    `json:"description"`
+	Id          string    `json:"doc_id"`
+	Title       string    `json:"title"`
 }
 
 func NewHtmlDoc(file *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
-	createdDate, err := time.Parse(time.RFC3339, file.CreatedTime)
-	if err != nil {
-		return HtmlDoc{}, err
-	}
-
-	modifiedDate, err := time.Parse(time.RFC3339, file.ModifiedTime)
-	if err != nil {
-		return HtmlDoc{}, err
-	}
-
 	return HtmlDoc{
 		Content:      content,
-		CreatedDate:  createdDate,
+		CreatedDate:  file.CreatedTime,
+		Description:  file.Description,
+		Draft:        !file.Visibility,
 		Id:           file.Id,
-		ModifiedDate: modifiedDate,
+		ModifiedDate: file.ModifiedTime,
 		Title:        file.Name,
 	}, nil
 }

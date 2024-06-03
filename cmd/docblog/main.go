@@ -25,22 +25,24 @@ func main() {
 		panic(err)
 	}
 
-	_, err = srv.GetOrCreateIndexSheet(config.DriveDirId)
+	indexMetadata, err := srv.GetIndexMetadata(config.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
 
-	files, err := srv.ListGoogleDocs(config.DriveDirId)
+	filesMetadata, err := srv.ListGoogleDocs(config.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
 
-	for _, file := range files {
-		log.Printf("| %s (%s)", file.Name, file.Id)
+	metadatas := combineIndexAndFilesMetadata(indexMetadata, filesMetadata)
 
-		unzippedFiles, err := srv.ExportGoogleDocToZippedHtml(file)
+	for _, fileMetadata := range metadatas {
+		log.Printf("| %s (%s)", fileMetadata.Name, fileMetadata.Id)
+
+		unzippedFiles, err := srv.ExportGoogleDocToZippedHtml(fileMetadata)
 		if err != nil {
-			log.Printf("Error exporting file: %s\n", file.Name)
+			log.Printf("Error exporting file: %s\n", fileMetadata.Name)
 			continue
 		}
 
@@ -49,12 +51,12 @@ func main() {
 			case ".html":
 				log.Printf("Processing HTML document: %s\n", unzippedFile.Name)
 				outputPath := fmt.Sprintf("%s/%s", config.PostsOutput, unzippedFile.Name)
-				if err := processHtml(outputPath, file, unzippedFile.Content); err != nil {
+				if err := processHtml(outputPath, fileMetadata, unzippedFile.Content); err != nil {
 					log.Printf("Error processing HTML file: %v\n", err)
 				}
 			case ".png":
 				log.Printf("Processing PNG asset: %s\n", unzippedFile.Name)
-				modifiedName := drive.NormalizedAssetPath(file.Id, unzippedFile.Name)
+				modifiedName := drive.NormalizedAssetPath(fileMetadata.Id, unzippedFile.Name)
 				outputPath := fmt.Sprintf("%s/%s", config.AssetsOutput, modifiedName)
 				if err := drive.WriteFile(outputPath, unzippedFile.Content); err != nil {
 					log.Printf("Error processing PNG file: %v\n", err)
@@ -64,6 +66,31 @@ func main() {
 			}
 		}
 	}
+}
+
+func combineIndexAndFilesMetadata(
+	indexMetadata map[string]drive.GoogleDocMetadata,
+	filesMetadata []*drive.GoogleDocMetadata,
+) []*drive.GoogleDocMetadata {
+	for i, fileMetadata := range filesMetadata {
+		if metadata, ok := indexMetadata[fileMetadata.Id]; ok {
+			log.Printf("Found metadata for file: %s\n", fileMetadata.Name)
+
+			if !metadata.CreatedTime.IsZero() {
+				filesMetadata[i].CreatedTime = metadata.CreatedTime
+			}
+			if metadata.Description != "" {
+				filesMetadata[i].Description = metadata.Description
+			}
+			if !metadata.ModifiedTime.IsZero() {
+				filesMetadata[i].ModifiedTime = metadata.ModifiedTime
+			}
+			if metadata.Name != "" {
+				filesMetadata[i].Name = metadata.Name
+			}
+		}
+	}
+	return filesMetadata
 }
 
 func processHtml(outputPath string, file *drive.GoogleDocMetadata, fileContent []byte) error {

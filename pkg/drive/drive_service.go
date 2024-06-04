@@ -32,7 +32,7 @@ var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
 	{"Date", 100},
 	{"Last modified", 100},
 	{"Visible", 50},
-	{"Description", 400},
+	{"Description", 1000},
 }
 
 var (
@@ -272,7 +272,12 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 				UserEnteredFormat: &CellDateFormat,
 			},
 			{UserEnteredValue: &sheets.ExtendedValue{BoolValue: &m.Visibility}},
-			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Description}},
+			{
+				UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Description},
+				UserEnteredFormat: &sheets.CellFormat{
+					WrapStrategy: "WRAP",
+				},
+			},
 		},
 	}
 }

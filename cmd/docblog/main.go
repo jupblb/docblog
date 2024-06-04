@@ -6,6 +6,7 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/google/docblog/pkg/ai"
 	"github.com/google/docblog/pkg/config"
 	"github.com/google/docblog/pkg/drive"
 )
@@ -42,10 +43,6 @@ func main() {
 		}
 	}
 
-	if err = srv.UpdateIndexMetadata(config.DriveDirId, filesMetadata); err != nil {
-		panic(err)
-	}
-
 	for _, fileMetadata := range filesMetadata {
 		log.Printf("| %s (%s)", fileMetadata.Name, fileMetadata.Id)
 
@@ -60,7 +57,8 @@ func main() {
 			case ".html":
 				log.Printf("Processing HTML document: %s\n", unzippedFile.Name)
 				outputPath := fmt.Sprintf("%s/%s", config.PostsOutput, unzippedFile.Name)
-				if err := processHtml(outputPath, fileMetadata, unzippedFile.Content); err != nil {
+				err := processHtml(ctx, outputPath, fileMetadata, unzippedFile.Content)
+				if err != nil {
 					log.Printf("Error processing HTML file: %v\n", err)
 				}
 			case ".png":
@@ -75,22 +73,39 @@ func main() {
 			}
 		}
 	}
+
+	if err = srv.UpdateIndexMetadata(config.DriveDirId, filesMetadata); err != nil {
+		panic(err)
+	}
 }
 
-func processHtml(outputPath string, file *drive.GoogleDocMetadata, fileContent []byte) error {
-	htmlDoc, err := drive.NewHtmlDoc(file, fileContent)
+func processHtml(
+	ctx context.Context,
+	outputPath string,
+	metadata *drive.GoogleDocMetadata,
+	fileContent []byte,
+) error {
+	if metadata.Description == "" {
+		description, err := ai.DescribeContent(ctx, fileContent)
+		if err != nil {
+			return fmt.Errorf("failed to describe content using AI: %v", err)
+		}
+		metadata.Description = description
+	}
+
+	htmlDoc, err := drive.NewHtmlDoc(metadata, fileContent)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse input HTML document: %v", err)
 	}
 
 	htmlDoc, err = htmlDoc.WithFixedContent()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to fix assets: %v", err)
 	}
 
 	htmlDoc, err = htmlDoc.WithFrontmatter()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add frontmatter: %v", err)
 	}
 
 	return drive.WriteFile(outputPath, htmlDoc.Content)

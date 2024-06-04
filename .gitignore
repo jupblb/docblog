@@ -3,3 +3,4 @@
 /.nvim.lua
 /credentials.json
 /hugo
+/.envrc.private

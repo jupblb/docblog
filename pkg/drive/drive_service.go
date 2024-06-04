@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"time"
 
 	"google.golang.org/api/drive/v3"
@@ -20,18 +21,31 @@ const (
 
 	GoogleSheetIndexListQuery = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.spreadsheet' and name='index'"
+	GoogleSheetIndexTitle = "Docblog configuration"
 
 	PostDayFormat = "02/01/2006"
 )
 
 var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
-	{"Id", 300},
+	{"Id", 330},
 	{"Name", 300},
-	{"Date", 150},
-	{"Last modified", 150},
-	{"Visible", 150},
+	{"Date", 100},
+	{"Last modified", 100},
+	{"Visible", 50},
 	{"Description", 400},
 }
+
+var (
+	// https://developers.google.com/sheets/api/guides/formats#about_date_time_values
+	GoogleSheetEpoch0 = time.Date(1899, time.December, 30, 0, 0, 0, 0, time.UTC)
+	CellDateFormat    = sheets.CellFormat{
+		HorizontalAlignment: "LEFT",
+		NumberFormat: &sheets.NumberFormat{
+			Pattern: "dd/mm/yyyy",
+			Type:    "DATE",
+		},
+	}
+)
 
 type DriveService struct {
 	driveSrv *drive.Service
@@ -108,6 +122,7 @@ func (ds *DriveService) ListGoogleDocs(
 			ModifiedTime: modifiedDate,
 			Id:           file.Id,
 			Name:         file.Name,
+			Visibility:   true,
 		})
 	}
 
@@ -129,12 +144,59 @@ func (ds *DriveService) GetIndexMetadata(
 		RowData[1:]
 	for _, row := range rows {
 		metadata := GoogleDocMetadata{}
-		if err := metadata.ParseRowData(row); err != nil {
-			return output, fmt.Errorf("error parsing row data: %w", err)
+		if errs := metadata.ParseRowData(row); errs != nil {
+			for _, err := range errs {
+				log.Printf("error parsing metadata (%s): %v", metadata.Id, err)
+			}
 		}
 		output[metadata.Id] = metadata
 	}
 	return output, nil
+}
+
+func (ds *DriveService) UpdateIndexMetadata(
+	driveDirId string,
+	metadata []*GoogleDocMetadata,
+) error {
+	sheet, err := ds.getOrCreateIndexSheet(driveDirId)
+	if err != nil {
+		return fmt.Errorf("error getting or creating index sheet: %w", err)
+	}
+	var rows []*sheets.RowData
+	for _, fileMetadata := range metadata {
+		rows = append(rows, fileMetadata.ToRowData())
+	}
+
+	_, err = ds.sheetSrv.Spreadsheets.BatchUpdate(
+		sheet.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
+			Requests: []*sheets.Request{{
+				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+					Fields: "*",
+					Properties: &sheets.SheetProperties{
+						GridProperties: &sheets.GridProperties{
+							ColumnCount: int64(len(GoogleSheetIndexColumnMetadata)),
+							RowCount:    1 + int64(len(rows)),
+						},
+						SheetId: sheet.Sheets[0].Properties.SheetId,
+						Title:   GoogleSheetIndexTitle,
+					},
+				},
+			}, {
+				UpdateCells: &sheets.UpdateCellsRequest{
+					Fields: "*",
+					Rows:   rows,
+					Start: &sheets.GridCoordinate{
+						SheetId:     sheet.Sheets[0].Properties.SheetId,
+						RowIndex:    1,
+						ColumnIndex: 0,
+					},
+				},
+			}},
+		}).Do()
+	if err != nil {
+		return fmt.Errorf("error updating index metadata: %v", err)
+	}
+	return nil
 }
 
 func (ds *DriveService) ExportGoogleDocToZippedHtml(
@@ -170,10 +232,21 @@ func (ds *DriveService) ExportGoogleDocToZippedHtml(
 	return unzippedFiles, nil
 }
 
+func (m1 *GoogleDocMetadata) UpdateWith(m2 GoogleDocMetadata) {
+	if !m2.CreatedTime.IsZero() {
+		m1.CreatedTime = m2.CreatedTime
+	}
+	if m2.Description != "" {
+		m1.Description = m2.Description
+	}
+}
+
 func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 	docUrl := fmt.Sprintf("https://docs.google.com/document/d/%s", m.Id)
-	createdDate := m.CreatedTime.Format(PostDayFormat)
-	modifiedDate := m.ModifiedTime.Format(PostDayFormat)
+	createdDate := float64(
+		m.CreatedTime.Sub(GoogleSheetEpoch0).Hours() / 24)
+	modifiedDate := float64(
+		m.ModifiedTime.Sub(GoogleSheetEpoch0).Hours() / 24)
 
 	return &sheets.RowData{
 		Values: []*sheets.CellData{
@@ -190,28 +263,40 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 				},
 			},
 			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Name}},
-			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &createdDate}},
-			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &modifiedDate}},
+			{
+				UserEnteredValue:  &sheets.ExtendedValue{NumberValue: &createdDate},
+				UserEnteredFormat: &CellDateFormat,
+			},
+			{
+				UserEnteredValue:  &sheets.ExtendedValue{NumberValue: &modifiedDate},
+				UserEnteredFormat: &CellDateFormat,
+			},
 			{UserEnteredValue: &sheets.ExtendedValue{BoolValue: &m.Visibility}},
 			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Description}},
 		},
 	}
 }
 
-func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) error {
+func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
+	errors := []error{}
+
 	visible := false
 	if row.Values[4] != nil && row.Values[4].UserEnteredValue != nil {
 		visible = *row.Values[4].UserEnteredValue.BoolValue
+	} else {
+		errors = append(errors, fmt.Errorf("missing visibility value"))
 	}
 
 	createdDate, err := time.Parse(PostDayFormat, row.Values[2].FormattedValue)
 	if err != nil {
 		createdDate = time.Time{}
+		errors = append(errors, fmt.Errorf("error parsing created date: %w", err))
 	}
 
 	modifiedDate, err := time.Parse(PostDayFormat, row.Values[3].FormattedValue)
 	if err != nil {
 		modifiedDate = time.Time{}
+		errors = append(errors, fmt.Errorf("error parsing modified date: %w", err))
 	}
 
 	m.Id = row.Values[0].FormattedValue
@@ -219,9 +304,14 @@ func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) error {
 	m.CreatedTime = createdDate
 	m.ModifiedTime = modifiedDate
 	m.Visibility = visible
-	m.Description = row.Values[5].FormattedValue
 
-	return nil
+	if len(row.Values) >= 6 {
+		m.Description = row.Values[5].FormattedValue
+	} else {
+		errors = append(errors, fmt.Errorf("missing description value"))
+	}
+
+	return errors
 }
 
 func (ds *DriveService) listGoogleDocs(
@@ -280,7 +370,7 @@ func (ds *DriveService) getOrCreateIndexSheet(
 						ColumnCount: int64(len(GoogleSheetIndexColumnMetadata)),
 						RowCount:    1,
 					},
-					Title: "Docblog configuration",
+					Title: GoogleSheetIndexTitle,
 				},
 			}},
 		}).Do()

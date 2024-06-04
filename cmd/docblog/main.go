@@ -35,9 +35,18 @@ func main() {
 		panic(err)
 	}
 
-	metadatas := combineIndexAndFilesMetadata(indexMetadata, filesMetadata)
+	for i, fileMetadata := range filesMetadata {
+		if metadata, ok := indexMetadata[fileMetadata.Id]; ok {
+			log.Printf("Found metadata for file: %s\n", fileMetadata.Name)
+			filesMetadata[i].UpdateWith(metadata)
+		}
+	}
 
-	for _, fileMetadata := range metadatas {
+	if err = srv.UpdateIndexMetadata(config.DriveDirId, filesMetadata); err != nil {
+		panic(err)
+	}
+
+	for _, fileMetadata := range filesMetadata {
 		log.Printf("| %s (%s)", fileMetadata.Name, fileMetadata.Id)
 
 		unzippedFiles, err := srv.ExportGoogleDocToZippedHtml(fileMetadata)
@@ -66,31 +75,6 @@ func main() {
 			}
 		}
 	}
-}
-
-func combineIndexAndFilesMetadata(
-	indexMetadata map[string]drive.GoogleDocMetadata,
-	filesMetadata []*drive.GoogleDocMetadata,
-) []*drive.GoogleDocMetadata {
-	for i, fileMetadata := range filesMetadata {
-		if metadata, ok := indexMetadata[fileMetadata.Id]; ok {
-			log.Printf("Found metadata for file: %s\n", fileMetadata.Name)
-
-			if !metadata.CreatedTime.IsZero() {
-				filesMetadata[i].CreatedTime = metadata.CreatedTime
-			}
-			if metadata.Description != "" {
-				filesMetadata[i].Description = metadata.Description
-			}
-			if !metadata.ModifiedTime.IsZero() {
-				filesMetadata[i].ModifiedTime = metadata.ModifiedTime
-			}
-			if metadata.Name != "" {
-				filesMetadata[i].Name = metadata.Name
-			}
-		}
-	}
-	return filesMetadata
 }
 
 func processHtml(outputPath string, file *drive.GoogleDocMetadata, fileContent []byte) error {

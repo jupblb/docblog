@@ -27,12 +27,12 @@ const (
 )
 
 var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
-	{"Id", 330},
+	{"Id", 350},
 	{"Name", 300},
 	{"Date", 100},
 	{"Last modified", 100},
 	{"Visible", 50},
-	{"Description", 1000},
+	{"Description", 800},
 }
 
 var (
@@ -243,6 +243,7 @@ func (m1 *GoogleDocMetadata) UpdateWith(m2 GoogleDocMetadata) {
 
 func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 	docUrl := fmt.Sprintf("https://docs.google.com/document/d/%s", m.Id)
+	hyperlink := fmt.Sprintf("=HYPERLINK(\"%s\", \"%s\")", docUrl, m.Id)
 	createdDate := float64(
 		m.CreatedTime.Sub(GoogleSheetEpoch0).Hours() / 24)
 	modifiedDate := float64(
@@ -251,7 +252,6 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 	return &sheets.RowData{
 		Values: []*sheets.CellData{
 			{
-				Hyperlink: docUrl,
 				UserEnteredFormat: &sheets.CellFormat{
 					HyperlinkDisplayType: "LINKED",
 					TextFormat: &sheets.TextFormat{
@@ -259,7 +259,7 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 					},
 				},
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &m.Id,
+					FormulaValue: &hyperlink,
 				},
 			},
 			{UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Name}},
@@ -387,8 +387,14 @@ func (ds *DriveService) getOrCreateIndexSheet(
 			Update(sheet.SpreadsheetId, nil).
 			AddParents(driveDirId).
 			Do()
+		if err != nil {
+			return sheet, err
+		}
 
-		return sheet, err
+		return ds.sheetSrv.Spreadsheets.
+			Get(sheet.SpreadsheetId).
+			IncludeGridData(true).
+			Do()
 	}
 
 	return ds.sheetSrv.Spreadsheets.Get(files[0].Id).IncludeGridData(true).Do()

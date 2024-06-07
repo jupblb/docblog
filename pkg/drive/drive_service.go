@@ -52,11 +52,12 @@ type DriveService struct {
 }
 
 type GoogleDocMetadata struct {
-	CreatedTime  time.Time
-	Description  string
-	Id           string
-	ModifiedTime time.Time
-	Name         string
+	ModifiedTime time.Time `json:"-"`
+
+	CreatedTime time.Time `json:"date"`
+	Description string    `json:"description"`
+	Id          string    `json:"google_doc_id"`
+	Name        string    `json:"title"`
 }
 
 type unzippedFile struct {

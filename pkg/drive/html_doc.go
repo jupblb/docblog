@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"sync"
-	"time"
 
 	"golang.org/x/net/html"
 )
@@ -14,23 +13,15 @@ const (
 )
 
 type HtmlDoc struct {
-	Content      []byte    `json:"-"`
-	ModifiedDate time.Time `json:"-"`
+	GoogleDocMetadata
 
-	CreatedDate time.Time `json:"date"`
-	Description string    `json:"description"`
-	Id          string    `json:"doc_id"`
-	Title       string    `json:"title"`
+	Content []byte `json:"-"`
 }
 
-func NewHtmlDoc(file *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
+func NewHtmlDoc(metadata *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 	return HtmlDoc{
-		Content:      content,
-		CreatedDate:  file.CreatedTime,
-		Description:  file.Description,
-		Id:           file.Id,
-		ModifiedDate: file.ModifiedTime,
-		Title:        file.Name,
+		GoogleDocMetadata: *metadata,
+		Content:           content,
 	}, nil
 }
 

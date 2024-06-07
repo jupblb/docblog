@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/api/drive/v3"
@@ -19,11 +20,12 @@ const (
 	GoogleDocListQuery  = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.document'"
 
+	GoogleSheetDayFormat      = "02/01/2006"
 	GoogleSheetIndexListQuery = "'%s' in parents and trashed=false and " +
 		"mimeType='application/vnd.google-apps.spreadsheet' and name='index'"
 	GoogleSheetIndexTitle = "Docblog configuration"
 
-	PostDayFormat = "02/01/2006"
+	JekyllPostDateFormat = "2006-01-02"
 )
 
 var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
@@ -55,7 +57,7 @@ type GoogleDocMetadata struct {
 	ModifiedTime time.Time `json:"-"`
 
 	CreatedTime time.Time `json:"date" yaml:"date"`
-	Description string    `json:"description" yaml:"description"`
+	Description string    `json:"excerpt" yaml:"excerpt"`
 	Id          string    `json:"google_doc_id" yaml:"google_doc_id"`
 	Name        string    `json:"title" yaml:"title"`
 }
@@ -282,13 +284,13 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
 	errors := []error{}
 
-	createdDate, err := time.Parse(PostDayFormat, row.Values[2].FormattedValue)
+	createdDate, err := time.Parse(GoogleSheetDayFormat, row.Values[2].FormattedValue)
 	if err != nil {
 		createdDate = time.Time{}
 		errors = append(errors, fmt.Errorf("error parsing created date: %w", err))
 	}
 
-	modifiedDate, err := time.Parse(PostDayFormat, row.Values[3].FormattedValue)
+	modifiedDate, err := time.Parse(GoogleSheetDayFormat, row.Values[3].FormattedValue)
 	if err != nil {
 		modifiedDate = time.Time{}
 		errors = append(errors, fmt.Errorf("error parsing modified date: %w", err))
@@ -306,6 +308,20 @@ func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
 	}
 
 	return errors
+}
+
+func (m *GoogleDocMetadata) FileName() string {
+	var sb strings.Builder
+
+	if !m.CreatedTime.IsZero() {
+		sb.WriteString(m.CreatedTime.Format(JekyllPostDateFormat))
+		sb.WriteByte('-')
+	}
+
+	sb.WriteString(strings.ReplaceAll(m.Name, " ", "-"))
+	sb.WriteString(".html")
+
+	return sb.String()
 }
 
 func (ds *DriveService) listGoogleDocs(

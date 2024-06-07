@@ -19,6 +19,7 @@ var args struct {
 	DriveDirId string `arg:"positional,required" help:"Google Drive directory with blog posts." placeholder:"DRIVE-DIR-ID"`
 
 	AssetsOutputPath          string `arg:"--assets-output,env:DOCBLOG_ASSETS_OUTPUT" default:"assets" help:"asset output path"`
+	AssetsPathPrefix          string `arg:"--assets-prefix,env:DOCBLOG_ASSETS_PREFIX" help:"asset path prefix (html)"`
 	GcloudCredentialsFilePath string `arg:"--credentials,env:DOCBLOG_GCLOUD_CREDENTIALS" default:".gcloud/application_default_credentials.json" help:"file with Google Cloud credentials"`
 	PostsOutputPath           string `arg:"--posts-output,env:DOCBLOG_POSTS_OUTPUT" default:"posts" help:"HTML output path"`
 }
@@ -71,14 +72,16 @@ func main() {
 			switch filepath.Ext(unzippedFile.Name) {
 			case ".html":
 				log.Printf("Processing HTML document: %s\n", unzippedFile.Name)
-				outputPath := fmt.Sprintf("%s/%s", args.PostsOutputPath, unzippedFile.Name)
+				outputPath := fmt.Sprintf(
+					"%s/%s", args.PostsOutputPath, fileMetadata.FileName())
 				err := processHtml(ctx, outputPath, fileMetadata, unzippedFile.Content)
 				if err != nil {
 					log.Printf("Error processing HTML file: %v\n", err)
 				}
 			case ".png":
 				log.Printf("Processing PNG asset: %s\n", unzippedFile.Name)
-				modifiedName := drive.NormalizedAssetPath(fileMetadata.Id, unzippedFile.Name)
+				modifiedName := drive.NormalizedAssetPath(
+					args.AssetsPathPrefix, fileMetadata.Id, unzippedFile.Name)
 				outputPath := fmt.Sprintf("%s/%s", args.AssetsOutputPath, modifiedName)
 				if err := drive.WriteFile(outputPath, unzippedFile.Content); err != nil {
 					log.Printf("Error processing PNG file: %v\n", err)
@@ -114,7 +117,7 @@ func processHtml(
 		return fmt.Errorf("failed to parse input HTML document: %v", err)
 	}
 
-	htmlDoc, err = htmlDoc.WithFixedContent()
+	htmlDoc, err = htmlDoc.WithFixedContent(args.AssetsPathPrefix)
 	if err != nil {
 		return fmt.Errorf("failed to fix assets: %v", err)
 	}

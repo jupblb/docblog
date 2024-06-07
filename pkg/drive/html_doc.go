@@ -27,6 +27,7 @@ func NewHtmlDoc(metadata *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 
 func (doc HtmlDoc) WithFrontmatter() (HtmlDoc, error) {
 	content := []byte("---\n")
+	content = append(content, "layout: post\n"...)
 
 	yamlBytes, err := yaml.Marshal(doc.GoogleDocMetadata)
 	if err != nil {
@@ -41,13 +42,13 @@ func (doc HtmlDoc) WithFrontmatter() (HtmlDoc, error) {
 	return doc, nil
 }
 
-func (doc HtmlDoc) WithFixedContent() (HtmlDoc, error) {
+func (doc HtmlDoc) WithFixedContent(assetPathPrefix string) (HtmlDoc, error) {
 	rootNode, err := html.Parse(bytes.NewReader(doc.Content))
 	if err != nil {
 		return doc, err
 	}
 
-	doc.modifyContent(rootNode)
+	doc.modifyContent(rootNode, assetPathPrefix)
 
 	var b bytes.Buffer
 	if err := html.Render(&b, rootNode); err != nil {
@@ -58,7 +59,7 @@ func (doc HtmlDoc) WithFixedContent() (HtmlDoc, error) {
 	return doc, nil
 }
 
-func (doc HtmlDoc) modifyContent(node *html.Node) {
+func (doc HtmlDoc) modifyContent(node *html.Node, assetPathPrefix string) {
 	if node.Type == html.ElementNode {
 		switch node.Data {
 		case "body":
@@ -72,7 +73,8 @@ func (doc HtmlDoc) modifyContent(node *html.Node) {
 			// Fix image paths
 			for i, attr := range node.Attr {
 				if attr.Key == "src" {
-					node.Attr[i].Val = "/" + NormalizedAssetPath(doc.Id, attr.Val)
+					node.Attr[i].Val = "/" +
+						NormalizedAssetPath(assetPathPrefix, doc.Id, attr.Val)
 				}
 			}
 		case "p":
@@ -103,7 +105,7 @@ func (doc HtmlDoc) modifyContent(node *html.Node) {
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		wg.Add(1)
 		go func(n *html.Node) {
-			doc.modifyContent(n)
+			doc.modifyContent(n, assetPathPrefix)
 			wg.Done()
 		}(child)
 	}

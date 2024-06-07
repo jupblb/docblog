@@ -2,10 +2,10 @@ package drive
 
 import (
 	"bytes"
-	"encoding/json"
 	"sync"
 
 	"golang.org/x/net/html"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -15,7 +15,7 @@ const (
 type HtmlDoc struct {
 	GoogleDocMetadata
 
-	Content []byte `json:"-"`
+	Content []byte
 }
 
 func NewHtmlDoc(metadata *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
@@ -26,12 +26,18 @@ func NewHtmlDoc(metadata *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 }
 
 func (doc HtmlDoc) WithFrontmatter() (HtmlDoc, error) {
-	jsonBytes, err := json.MarshalIndent(doc, "", "  ")
+	content := []byte("---\n")
+
+	yamlBytes, err := yaml.Marshal(doc.GoogleDocMetadata)
 	if err != nil {
 		return doc, err
 	}
-	jsonBytes = append(jsonBytes, '\n')
-	doc.Content = append(jsonBytes, doc.Content...)
+
+	content = append(content, yamlBytes...)
+	content = append(content, "---\n"...)
+	content = append(content, doc.Content...)
+
+	doc.Content = content
 	return doc, nil
 }
 

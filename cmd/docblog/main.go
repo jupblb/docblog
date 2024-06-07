@@ -4,34 +4,49 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
+	"github.com/alexflint/go-arg"
 	"github.com/google/docblog/pkg/ai"
-	"github.com/google/docblog/pkg/config"
 	"github.com/google/docblog/pkg/drive"
+	"google.golang.org/api/option"
 )
 
+var args struct {
+	ai.GeminiOptions
+
+	DriveDirId string `arg:"positional,required" help:"Google Drive directory with blog posts." placeholder:"DRIVE-DIR-ID"`
+
+	AssetsOutputPath          string `arg:"--assets-output,env:DOCBLOG_ASSETS_OUTPUT" default:"assets" help:"asset output path"`
+	GcloudCredentialsFilePath string `arg:"--credentials,env:DOCBLOG_GCLOUD_CREDENTIALS" default:".gcloud/application_default_credentials.json" help:"file with Google Cloud credentials"`
+	PostsOutputPath           string `arg:"--posts-output,env:DOCBLOG_POSTS_OUTPUT" default:"posts" help:"HTML output path"`
+}
+
 func main() {
-	config, err := config.ReadConfig()
-	if err != nil {
+	arg.MustParse(&args)
+
+	if err := os.MkdirAll(args.PostsOutputPath, 0o750); err != nil {
 		panic(err)
 	}
-	if err := config.SetupDirs(); err != nil {
+	if err := os.MkdirAll(args.AssetsOutputPath, 0o750); err != nil {
 		panic(err)
 	}
 
 	ctx := context.Background()
-	srv, err := drive.NewDriveService(ctx, config.DriveOpts())
+	srv, err := drive.NewDriveService(ctx, []option.ClientOption{
+		option.WithCredentialsFile(args.GcloudCredentialsFilePath),
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	indexMetadata, err := srv.GetIndexMetadata(config.DriveDirId)
+	indexMetadata, err := srv.GetIndexMetadata(args.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
 
-	filesMetadata, err := srv.ListGoogleDocs(config.DriveDirId)
+	filesMetadata, err := srv.ListGoogleDocs(args.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +71,7 @@ func main() {
 			switch filepath.Ext(unzippedFile.Name) {
 			case ".html":
 				log.Printf("Processing HTML document: %s\n", unzippedFile.Name)
-				outputPath := fmt.Sprintf("%s/%s", config.PostsOutput, unzippedFile.Name)
+				outputPath := fmt.Sprintf("%s/%s", args.PostsOutputPath, unzippedFile.Name)
 				err := processHtml(ctx, outputPath, fileMetadata, unzippedFile.Content)
 				if err != nil {
 					log.Printf("Error processing HTML file: %v\n", err)
@@ -64,7 +79,7 @@ func main() {
 			case ".png":
 				log.Printf("Processing PNG asset: %s\n", unzippedFile.Name)
 				modifiedName := drive.NormalizedAssetPath(fileMetadata.Id, unzippedFile.Name)
-				outputPath := fmt.Sprintf("%s/%s", config.AssetsOutput, modifiedName)
+				outputPath := fmt.Sprintf("%s/%s", args.AssetsOutputPath, modifiedName)
 				if err := drive.WriteFile(outputPath, unzippedFile.Content); err != nil {
 					log.Printf("Error processing PNG file: %v\n", err)
 				}
@@ -74,7 +89,7 @@ func main() {
 		}
 	}
 
-	if err = srv.UpdateIndexMetadata(config.DriveDirId, filesMetadata); err != nil {
+	if err = srv.UpdateIndexMetadata(args.DriveDirId, filesMetadata); err != nil {
 		panic(err)
 	}
 }
@@ -86,11 +101,12 @@ func processHtml(
 	fileContent []byte,
 ) error {
 	if metadata.Description == "" {
-		description, err := ai.DescribeContent(ctx, fileContent)
-		if err != nil {
-			return fmt.Errorf("failed to describe content using AI: %v", err)
+		description, err := ai.DescribeContent(ctx, args.GeminiOptions, fileContent)
+		if err == nil {
+			metadata.Description = description
+		} else {
+			log.Printf("Error generating description: %v\n", err)
 		}
-		metadata.Description = description
 	}
 
 	htmlDoc, err := drive.NewHtmlDoc(metadata, fileContent)

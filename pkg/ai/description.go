@@ -3,28 +3,41 @@ package ai
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
 )
 
-const Query = "Summarize content of the HTML blog post attached below. " +
+const DefaultPrompt = "Summarize content of the HTML blog post attached below. " +
 	"Use only plain text in response. Use up to 5 sentences. " +
 	"Skip \"this blog post outlines\" at the beginning."
 
-func DescribeContent(ctx context.Context, content []byte) (string, error) {
-	client, err := genai.NewClient(
-		ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
+type GeminiOptions struct {
+	GeminiApiKey            string `arg:"--gemini-api-key,env:GEMINI_API_KEY" help:"API key for Gemini"`
+	GeminiModel             string `arg:"--gemini-model,env:GEMINI_MODEL" default:"gemini-1.5-pro" help:"Gemini model to use for generating post description"`
+	GeminiDescriptionPrompt string `arg:"env:GEMINI_DESCRIPTION_PROMPT" help:"prompt message to be used to generate HTML description"`
+}
+
+func DescribeContent(
+	ctx context.Context,
+	opts GeminiOptions,
+	content []byte,
+) (string, error) {
+	client, err := genai.NewClient(ctx, option.WithAPIKey(opts.GeminiApiKey))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create Gemini client: %v", err)
 	}
 	defer client.Close()
 
-	model := client.GenerativeModel("gemini-1.5-pro")
+	query := DefaultPrompt
+	if opts.GeminiDescriptionPrompt != "" {
+		query = opts.GeminiDescriptionPrompt
+	}
+
+	model := client.GenerativeModel(opts.GeminiModel)
 	resp, err := model.StartChat().SendMessage(ctx, genai.Text(
-		fmt.Sprintf("%s\n\n```%s\n```", Query, string(content)),
+		fmt.Sprintf("%s\n\n```%s\n```", query, string(content)),
 	))
 	if err != nil {
 		return "", err

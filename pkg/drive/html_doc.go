@@ -18,7 +18,6 @@ type HtmlDoc struct {
 	ModifiedDate time.Time `json:"-"`
 
 	CreatedDate time.Time `json:"date"`
-	Draft       bool      `json:"draft"`
 	Description string    `json:"description"`
 	Id          string    `json:"doc_id"`
 	Title       string    `json:"title"`
@@ -29,7 +28,6 @@ func NewHtmlDoc(file *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 		Content:      content,
 		CreatedDate:  file.CreatedTime,
 		Description:  file.Description,
-		Draft:        !file.Visibility,
 		Id:           file.Id,
 		ModifiedDate: file.ModifiedTime,
 		Title:        file.Name,

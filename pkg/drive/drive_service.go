@@ -31,7 +31,6 @@ var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
 	{"Name", 300},
 	{"Date", 100},
 	{"Last modified", 100},
-	{"Visible", 50},
 	{"Description", 800},
 }
 
@@ -58,7 +57,6 @@ type GoogleDocMetadata struct {
 	Id           string
 	ModifiedTime time.Time
 	Name         string
-	Visibility   bool
 }
 
 type unzippedFile struct {
@@ -122,7 +120,6 @@ func (ds *DriveService) ListGoogleDocs(
 			ModifiedTime: modifiedDate,
 			Id:           file.Id,
 			Name:         file.Name,
-			Visibility:   true,
 		})
 	}
 
@@ -271,7 +268,6 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 				UserEnteredValue:  &sheets.ExtendedValue{NumberValue: &modifiedDate},
 				UserEnteredFormat: &CellDateFormat,
 			},
-			{UserEnteredValue: &sheets.ExtendedValue{BoolValue: &m.Visibility}},
 			{
 				UserEnteredValue: &sheets.ExtendedValue{StringValue: &m.Description},
 				UserEnteredFormat: &sheets.CellFormat{
@@ -284,13 +280,6 @@ func (m *GoogleDocMetadata) ToRowData() *sheets.RowData {
 
 func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
 	errors := []error{}
-
-	visible := false
-	if row.Values[4] != nil && row.Values[4].UserEnteredValue != nil {
-		visible = *row.Values[4].UserEnteredValue.BoolValue
-	} else {
-		errors = append(errors, fmt.Errorf("missing visibility value"))
-	}
 
 	createdDate, err := time.Parse(PostDayFormat, row.Values[2].FormattedValue)
 	if err != nil {
@@ -308,10 +297,9 @@ func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
 	m.Name = row.Values[1].FormattedValue
 	m.CreatedTime = createdDate
 	m.ModifiedTime = modifiedDate
-	m.Visibility = visible
 
-	if len(row.Values) >= 6 {
-		m.Description = row.Values[5].FormattedValue
+	if len(row.Values) >= len(GoogleSheetIndexColumnMetadata) {
+		m.Description = row.Values[4].FormattedValue
 	} else {
 		errors = append(errors, fmt.Errorf("missing description value"))
 	}

@@ -162,36 +162,43 @@ func (ds *DriveService) UpdateIndexMetadata(
 	if err != nil {
 		return fmt.Errorf("error getting or creating index sheet: %w", err)
 	}
+
 	var rows []*sheets.RowData
 	for _, fileMetadata := range metadata {
 		rows = append(rows, fileMetadata.ToRowData())
 	}
 
+	requests := []*sheets.Request{{
+		UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+			Fields: "*",
+			Properties: &sheets.SheetProperties{
+				GridProperties: &sheets.GridProperties{
+					ColumnCount: int64(len(GoogleSheetIndexColumnMetadata)),
+					RowCount:    1 + int64(len(rows)),
+				},
+				SheetId: sheet.Sheets[0].Properties.SheetId,
+				Title:   GoogleSheetIndexTitle,
+			},
+		},
+	}}
+
+	if rows != nil {
+		requests = append(requests, &sheets.Request{
+			UpdateCells: &sheets.UpdateCellsRequest{
+				Fields: "*",
+				Rows:   rows,
+				Start: &sheets.GridCoordinate{
+					SheetId:     sheet.Sheets[0].Properties.SheetId,
+					RowIndex:    1,
+					ColumnIndex: 0,
+				},
+			},
+		})
+	}
+
 	_, err = ds.sheetSrv.Spreadsheets.BatchUpdate(
 		sheet.SpreadsheetId, &sheets.BatchUpdateSpreadsheetRequest{
-			Requests: []*sheets.Request{{
-				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
-					Fields: "*",
-					Properties: &sheets.SheetProperties{
-						GridProperties: &sheets.GridProperties{
-							ColumnCount: int64(len(GoogleSheetIndexColumnMetadata)),
-							RowCount:    1 + int64(len(rows)),
-						},
-						SheetId: sheet.Sheets[0].Properties.SheetId,
-						Title:   GoogleSheetIndexTitle,
-					},
-				},
-			}, {
-				UpdateCells: &sheets.UpdateCellsRequest{
-					Fields: "*",
-					Rows:   rows,
-					Start: &sheets.GridCoordinate{
-						SheetId:     sheet.Sheets[0].Properties.SheetId,
-						RowIndex:    1,
-						ColumnIndex: 0,
-					},
-				},
-			}},
+			Requests: requests,
 		}).Do()
 	if err != nil {
 		return fmt.Errorf("error updating index metadata: %v", err)

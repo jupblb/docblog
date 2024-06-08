@@ -54,7 +54,7 @@ type DriveService struct {
 }
 
 type GoogleDocMetadata struct {
-	ModifiedTime time.Time `json:"-"`
+	ModifiedTime time.Time `json:"-" yaml:"-"`
 
 	CreatedTime time.Time `json:"date" yaml:"date"`
 	Description string    `json:"excerpt" yaml:"excerpt"`

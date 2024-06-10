@@ -3,7 +3,9 @@ package drive
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"regexp"
+	"strings"
 	"sync"
 
 	"golang.org/x/net/html"
@@ -19,6 +21,8 @@ type HtmlDoc struct {
 
 	Content []byte
 }
+
+const googleUrlPrefix = "https://www.google.com/url"
 
 var (
 	colorRegex = regexp.MustCompile(`color:[^;]+;`)
@@ -79,6 +83,19 @@ func (doc HtmlDoc) modifyContent(node *html.Node, assetPathPrefix string) {
 		}
 
 		switch node.Data {
+		case "a":
+			// Google redirect links have a timestamp that is refreshed on each read
+			for i, attr := range node.Attr {
+				if attr.Key == "href" && strings.HasPrefix(attr.Val, googleUrlPrefix) {
+					if url, err := url.Parse(attr.Val); err == nil {
+						if query := url.Query(); query != nil {
+							if q := query.Get("q"); q != "" {
+								node.Attr[i].Val = q
+							}
+						}
+					}
+				}
+			}
 		case "body":
 			// Remove body styling, otherwise it affects entire page
 			for i, attr := range node.Attr {

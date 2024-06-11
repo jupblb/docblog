@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// WriteFile writes the provided file content to the output path.
 func WriteFile(outputPath string, fileContent []byte) error {
 	f, err := os.Create(outputPath)
 	if err != nil {

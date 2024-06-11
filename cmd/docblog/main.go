@@ -42,7 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	indexMetadata, err := srv.GetIndexMetadata(args.DriveDirId)
+	indexSheet, err := srv.GetIndexSheet(args.DriveDirId)
 	if err != nil {
 		panic(err)
 	}
@@ -53,14 +53,14 @@ func main() {
 	}
 
 	for i, fileMetadata := range filesMetadata {
-		if metadata, ok := indexMetadata[fileMetadata.Id]; ok {
+		if metadata, ok := indexSheet[fileMetadata.Id]; ok {
 			log.Printf("Found metadata for file: %s\n", fileMetadata.Name)
 			filesMetadata[i].UpdateWith(metadata)
 		}
 	}
 
 	for _, fileMetadata := range filesMetadata {
-		log.Printf("| %s (%s)", fileMetadata.Name, fileMetadata.Id)
+		log.Printf("Found file: %s (%s)", fileMetadata.Name, fileMetadata.Id)
 
 		unzippedFiles, err := srv.ExportGoogleDocToZippedHtml(fileMetadata)
 		if err != nil {
@@ -104,7 +104,8 @@ func processHtml(
 	fileContent []byte,
 ) error {
 	if metadata.Description == "" {
-		description, err := ai.DescribeContent(ctx, args.GeminiOptions, fileContent)
+		description, err := ai.DescribeContent(
+			ctx, args.GeminiOptions, string(fileContent))
 		if err == nil {
 			metadata.Description = description
 		} else {

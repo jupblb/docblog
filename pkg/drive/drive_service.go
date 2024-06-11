@@ -28,6 +28,8 @@ const (
 	JekyllPostDateFormat = "2006-01-02"
 )
 
+// GoogleSheetIndexColumnMetadata defines the metadata
+// for the columns in the "index" sheet.
 var GoogleSheetIndexColumnMetadata = [...]configColumnMetadata{
 	{"Id", 350},
 	{"Name", 300},
@@ -48,11 +50,14 @@ var (
 	}
 )
 
+// DriveService provides methods to interact with Google Drive
+// and Google Sheets.
 type DriveService struct {
 	driveSrv *drive.Service
 	sheetSrv *sheets.Service
 }
 
+// GoogleDocMetadata represents the metadata of a Google Document.
 type GoogleDocMetadata struct {
 	ModifiedTime time.Time `json:"-" yaml:"-"`
 
@@ -62,11 +67,14 @@ type GoogleDocMetadata struct {
 	Name        string    `json:"title" yaml:"title"`
 }
 
+// Google Documents can be exported to a zipped HTML file with all the assets
+// included. unzippedFile represents a file extracted from such archive.
 type unzippedFile struct {
 	Name    string
 	Content []byte
 }
 
+// configColumnMetadata represents the metadata for a column in a Google Sheet.
 type configColumnMetadata struct {
 	name       string
 	pixelWidth int64
@@ -129,7 +137,10 @@ func (ds *DriveService) ListGoogleDocs(
 	return driveFiles, nil
 }
 
-func (ds *DriveService) GetIndexMetadata(
+// GetIndexSheet retrieves the "index" sheet grid data from the provided Google
+// Drive. This file is automatically created by docblog and can be used to
+// manually modify post's publication date and description.
+func (ds *DriveService) GetIndexSheet(
 	driveDirId string,
 ) (map[string]GoogleDocMetadata, error) {
 	sheet, err := ds.getOrCreateIndexSheet(driveDirId)
@@ -154,6 +165,8 @@ func (ds *DriveService) GetIndexMetadata(
 	return output, nil
 }
 
+// UpdateIndexMetadata updates the "index" sheet grid data with the provided
+// metadata. It's main purpose is to add information about new documents.
 func (ds *DriveService) UpdateIndexMetadata(
 	driveDirId string,
 	metadata []*GoogleDocMetadata,
@@ -317,6 +330,8 @@ func (m *GoogleDocMetadata) ParseRowData(row *sheets.RowData) []error {
 	return errors
 }
 
+// FileName returns a normalized file name for the Google Document that is
+// compliant with Jekyll naming convention.
 func (m *GoogleDocMetadata) FileName() string {
 	var sb strings.Builder
 

@@ -36,6 +36,8 @@ func NewHtmlDoc(metadata *GoogleDocMetadata, content []byte) (HtmlDoc, error) {
 	}, nil
 }
 
+// withFrontmatter adds frontmatter to the HTML content that contains Google Doc
+// metadata along with content description.
 func (doc HtmlDoc) WithFrontmatter() (HtmlDoc, error) {
 	content := []byte("---\n")
 	content = append(content, "layout: post\n"...)
@@ -53,6 +55,14 @@ func (doc HtmlDoc) WithFrontmatter() (HtmlDoc, error) {
 	return doc, nil
 }
 
+// WithFixedContent modifies the HTML content in the following way:
+//   - Removes any font-related styling
+//   - Removes any additional styling from the <style> tag
+//   - Removed Google redirect from URL links
+//   - Removed body styling
+//   - Increases header levels by 1 (by default there may be many h1 tags)
+//   - Fixes asset paths
+//   - Removes title and subtitle, this should be taken from the frontmatter
 func (doc HtmlDoc) WithFixedContent(assetPathPrefix string) (HtmlDoc, error) {
 	rootNode, err := html.Parse(bytes.NewReader(doc.Content))
 	if err != nil {

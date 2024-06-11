@@ -19,10 +19,12 @@ type GeminiOptions struct {
 	GeminiDescriptionPrompt string `arg:"env:GEMINI_DESCRIPTION_PROMPT" help:"prompt message to be used to generate HTML description"`
 }
 
+// DescribeContent generates a description for the provided text content using
+// the Gemini API.
 func DescribeContent(
 	ctx context.Context,
 	opts GeminiOptions,
-	content []byte,
+	content string,
 ) (string, error) {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(opts.GeminiApiKey))
 	if err != nil {
@@ -37,7 +39,7 @@ func DescribeContent(
 
 	model := client.GenerativeModel(opts.GeminiModel)
 	resp, err := model.StartChat().SendMessage(ctx, genai.Text(
-		fmt.Sprintf("%s\n\n```%s\n```", query, string(content)),
+		fmt.Sprintf("%s\n\n```%s\n```", query, content),
 	))
 	if err != nil {
 		return "", err
